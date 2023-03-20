@@ -8,6 +8,6 @@ import { JwtStrategy } from './jwt.strategy'
 @Module({
 	imports: [JwtModule.register({ secret: 'hard!to-guess_secret' })],
 	controllers: [AuthController],
-	providers: [AuthService, JwtStrategy, PrismaService],
+	providers: [AuthService, PrismaService, JwtStrategy],
 })
 export class AuthModule {}

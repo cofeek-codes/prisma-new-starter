@@ -1,6 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common'
+import {
+	BadRequestException,
+	Injectable,
+	UnauthorizedException,
+} from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
-import { hash } from 'argon2'
+import { hash, verify } from 'argon2'
 import { PrismaService } from 'src/prisma.service'
 import { AuthDTO } from './dto/auth.dto'
 
@@ -21,9 +25,24 @@ export class AuthService {
 			},
 		})
 
-		return user
+		const tokens = await this.getNewTokens(user.id)
+
+		return { user, tokens }
 	}
-	async login(dto: AuthDTO) {}
+	async login(dto: AuthDTO) {
+		const user = await this.prisma.user.findUnique({
+			where: { email: dto.email },
+		})
+		const isValidPassword = await verify(user.password, dto.password)
+
+		if (!user)
+			throw new BadRequestException('no user with this email registered')
+		if (!isValidPassword) throw new UnauthorizedException('wrong password')
+
+		const tokens = await this.getNewTokens(user.id)
+
+		return { user, tokens }
+	}
 	private validateUser() {}
 	private async getNewTokens(userId: number) {
 		const data = { id: userId }
