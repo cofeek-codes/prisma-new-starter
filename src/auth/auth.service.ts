@@ -1,6 +1,7 @@
 import {
 	BadRequestException,
 	Injectable,
+	NotFoundException,
 	UnauthorizedException,
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
@@ -25,30 +26,47 @@ export class AuthService {
 			},
 		})
 
-		const tokens = await this.getNewTokens(user.id)
+		const tokens = await this.issueTokenPair(user.id)
 
 		return { user, tokens }
 	}
 	async login(dto: AuthDTO) {
-		const user = await this.prisma.user.findUnique({
-			where: { email: dto.email },
-		})
-		const isValidPassword = await verify(user.password, dto.password)
-
-		if (!user)
-			throw new BadRequestException('no user with this email registered')
-		if (!isValidPassword) throw new UnauthorizedException('wrong password')
-
-		const tokens = await this.getNewTokens(user.id)
+		const user = await this.validateUser(dto)
+		const tokens = await this.issueTokenPair(user.id)
 
 		return { user, tokens }
 	}
-	private validateUser() {}
-	private async getNewTokens(userId: number) {
+
+	private async validateUser(dto: AuthDTO) {
+		const user = await this.prisma.user.findUnique({
+			where: { email: dto.email },
+		})
+		// must be placed right after
+		if (!user) throw new NotFoundException('no user with this email registered')
+		const isValidPassword = await verify(user.password, dto.password)
+
+		if (!isValidPassword) throw new UnauthorizedException('invalid password')
+
+		return user
+	}
+
+	// initial tokens
+	private async issueTokenPair(userId: number) {
 		const data = { id: userId }
 
 		const accessToken = this.jwt.sign(data, { expiresIn: '1h' })
 		const refreshToken = this.jwt.sign(data, { expiresIn: '7d' })
 		return { accessToken, refreshToken }
+	}
+
+	async getNewTokens(refreshToken: string) {
+		const result = await this.jwt.verify(refreshToken)
+		if (!result) throw new UnauthorizedException('invalid refresh token')
+
+		const user = await this.prisma.user.findUnique({ where: { id: result.id } })
+
+		const tokens = await this.issueTokenPair(user.id)
+
+		return { user, tokens }
 	}
 }
