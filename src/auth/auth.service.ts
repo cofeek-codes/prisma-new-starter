@@ -43,6 +43,7 @@ export class AuthService {
 		})
 		// must be placed right after
 		if (!user) throw new NotFoundException('no user with this email registered')
+
 		const isValidPassword = await verify(user.password, dto.password)
 
 		if (!isValidPassword) throw new UnauthorizedException('invalid password')
